@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Ekstrakurikuler Badminton SMPN 6 Manokwari</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Konfigurasi Font Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* White-ish background */
+        }
+        /* Style untuk mode print */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #attendanceRecap, #attendanceRecap * {
+                visibility: visible;
+            }
+            #attendanceRecap {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 20px;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            /* Hilangkan elemen kontrol saat print */
+            #attendanceRecap .no-print {
+                display: none !important;
+            }
+            .print-header {
+                display: block;
+                text-align: center;
+                margin-bottom: 20px;
+                font-size: 16px;
+                font-weight: 600;
+            }
+            /* Sembunyikan kolom NIS saat print juga */
+            /* .column-nis { display: none !important; } */
+        }
+    </style>
+</head>
+<body>
+
+<div id="appContainer" class="min-h-screen flex flex-col items-center justify-center p-4">
+    <!-- Header Aplikasi -->
+    <header class="w-full max-w-5xl mb-6 text-center">
+        <h1 class="text-3xl font-extrabold text-[#3b82f6] md:text-4xl">
+            Aplikasi Absen Digital Ekstrakurikuler Badminton
+        </h1>
+        <p class="text-gray-500 mt-1">SMP Negeri 6 Manokwari</p>
+    </header>
+
+    <!-- Halaman Selamat Datang -->
+    <div id="welcomeScreen" class="flex flex-col items-center justify-center w-full max-w-md p-6 bg-white rounded-xl shadow-2xl transition-all duration-500">
+        <svg class="w-16 h-16 text-[#3b82f6] mb-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.197a1.003 1.003 0 00.95 0l2.675-1.35c.427-.215.96-.039 1.25.321l2.64 2.94c.25.279.444.6.57.942.126.342.188.706.188 1.07V18a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h11.049zM10 16a2 2 0 100-4 2 2 0 000 4z"></path>
+        </svg>
+        <button id="welcomeButton" class="w-full py-3 bg-[#3b82f6] text-white font-semibold text-lg rounded-lg shadow-lg hover:bg-blue-700 transition duration-300 transform hover:scale-[1.02]">
+            Selamat Datang & Mulai
+        </button>
+    </div>
+
+    <!-- Halaman Utama (Absensi & Admin) -->
+    <div id="mainApp" class="hidden w-full max-w-5xl p-4 md:p-8 bg-white rounded-xl shadow-2xl transition-all duration-500">
+        <div class="flex flex-col md:flex-row gap-8">
+            
+            <!-- Kolom 1: Fitur Absensi (Scan QR Code dengan Alat Terpisah) -->
+            <div class="md:w-1/3 p-4 bg-gray-50 border border-gray-200 rounded-xl shadow-inner h-fit">
+                <h3 class="text-xl font-bold text-[#1d4ed8] mb-4">1. Absensi Kehadiran (Scan Kode Unik)</h3>
+                
+                <p class="text-sm text-gray-600 mb-4">Arahkan alat scan ke QR Code/Barcode, hasilnya akan masuk otomatis ke kolom di bawah ini. Input akan **otomatis direset** setelah absensi.</p>
+                
+                <!-- Input untuk Menangkap Hasil Scan -->
+                <div class="mb-4">
+                    <label for="qrCodeInput" class="block text-xs font-medium text-gray-500 mb-1">Kode Unik Hasil Scan:</label>
+                    <input type="text" id="qrCodeInput" placeholder="Arahkan scanner Anda di sini..." autofocus 
+                           class="w-full p-3 border-2 border-green-500 rounded-lg text-lg font-mono focus:ring-green-500 focus:border-green-500 shadow-lg transition"
+                           onfocus="this.select()">
+                </div>
+
+                <div id="messageBox" class="mt-4 p-3 rounded-lg text-sm transition-all duration-300 hidden"></div>
+
+                <!-- Admin Access Toggle (Simulasi) -->
+                <div class="mt-8 pt-4 border-t border-gray-200">
+                    <button id="toggleAdminButton" class="w-full text-center text-xs text-gray-500 hover:text-[#3b82f6] transition">
+                        Beralih ke Mode Admin
+                    </button>
+                </div>
+            </div>
+
+            <!-- Kolom 2: Rekap Kehadiran & Admin Data -->
+            <div class="md:w-2/3">
+                <div id="adminPanel" class="hidden bg-yellow-50 p-4 border border-yellow-200 rounded-xl mb-6">
+                    <h3 class="text-xl font-bold text-yellow-700 mb-3">2. Panel Admin (Upload Data Anggota Ekstrakurikuler)</h3>
+                    <p class="text-sm text-yellow-600 mb-3">Paste data anggota di bawah. **Format wajib**: NAMA,JENIS KELAMIN (L/P),KELAS,KODE UNIK (dipisahkan koma atau tab). Data lama akan ditimpa.</p>
+                    
+                    <textarea id="studentDataInput" rows="10" placeholder="Contoh:&#10;Nama Siswa,JK,Kelas,Kode Unik&#10;Alfian,L,IX-A,A1&#10;Budi,P,VII-B,B2&#10;... (Data lama akan ditimpa)" class="w-full p-2 border border-yellow-300 rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">GRICELDA L. I. WANMA,P,9 G,A1
+CHRISTIN WAIS WANGGAI,P,9 D,A2
+REYHAN SAMUEL CRISTIAN RONDONUWU,L,9 D,A3
+ALYANI RAFIDAH,P,9 D,A4
+ZAHRA PUTRI MAHARANI,P,9 D,A5
+FAUZAN MUHAMMAD ALTING,L,9 E,A6
+VIGARIEL MATASAK,P,9 H,A7
+FERDINAND TIKU TONDOK,L,9 B,A8
+FHENEZA NUR AMELIA BAKRY,P,9 B,A9
+GILANG KRISTIAN,L,9 B,A10
+FIRA QAULI AZKIA,P,9 F,A11
+NABHILA AL-QAHLA,P,9 F,A12
+QUEENCY OCTRIA SANY,P,9 B,A13
+EXCEL ALFATIHAH JOVANKY KERVAL,L,9 F,A14
+FAIZAN KAHARUDIN,L,9 C,A15
+PUTRA PRATAMA,L,9 E,A16
+GABRIEL CHRISTOPHER MUSA LALENOH,L,9 D,A17
+MUHAMMAD RIFALDY SAPUTRA LEMBA,L,8 A,A18
+PUTRI ANNASTASIA KHARISMA WARDI,P,8 C,A19
+VALENTINO VALEN J. R. JIWANG,L,8 C,A20
+MUH. REYNALDO RAHMAN,L,8 C,A21
+ANGGELITA FEBRIANTI SATTU,P,8 D,A22
+CHRISTIAN CHRISEN R. RANDO,L,8 H,A23
+MARGARETHA ARYANI M. U. L. LAISILA,P,8 G,A24
+MARCELA RAHABAV,P,8 A,A25
+KEVIN ZEFANYA PRATAMA SIMATUPANG,L,8 A,A26
+RISKY YUSUF,L,8 B,A27
+MUHAMMAD FIKRI,L,8 C,A28
+ELSA MARISA PUTRI,P,8 H,A29
+AGNES PUTRI PARMA,P,8 H,A30
+PRICILIA MARTHA KRISTIANI,P,8 H,A31
+MUHAMMAD KHALIL AL GHIFARY,L,8 A,A32
+JESIKA GLORY CHYNTIA SAKET,P,8 A,A33
+GABRIEL CRISTOFER PASANDA,L,8 F,A34
+NABILA NUR FADILLAH,P,8 F,A35
+ANDINI PUTRI PRADITA,P,8 E,A36
+ELVA DESTA R. SITORUS,P,8 A,A37
+CHEYENNE EVELYN V. RUMASEB,P,8 C,A38
+RAFLI WIJAYA PRANANTA,L,8 H,A39
+MUHAMMAD ARYA ALFARIZKI,L,8 B,A40
+M. FAHREZY RANGKUTI,L,8 B,A41
+JESSICA AURELIA VINSENTIA WAISE,P,8 A,A42
+VALERINA T. V. TAMPUBOLON,P,8 A,A43
+AZALEA PUTRI CAHYANI,P,8 A,A44
+NAOMI AZZAHRA FAREL,P,8 B,A45
+ELENA GABRIELA R. PALITA,P,8 H,A46
+MUH. DAFFA ARIEL YUSUF,L,8 B,A47
+PUTRA WANDA,L,8 B,A48
+AGUSTINA KAKA,P,8 C,A49
+ADHIETTYA MUHAMMAD ALFAREL,L,8 B,A50
+NUR AISYAH,P,8 D,A51
+ARLIA CIKITA CAHYANI,P,8 E,A52
+MUHAMMAD ZULFIKAR RAHMAN,L,8 E,A53
+NURUL INTAN AULIA,P,8 B,A54
+VIONA APRILIA ARUAN,P,8 E,A55
+ANASTASIA WULANDARI,P,8 E,A56
+AGNES ANGGELINA,P,8 E,A57
+RIZKY FACHREZA,L,8 E,A58
+PUTRA YUDHA PRATAMA,L,8 E,A59
+NURUL ASFIYAH FAUZIAH,P,8 E,A60
+AGNES PRISILIA HIKUBAWA,P,8 C,A61
+RAHMA WAHYUNI,P,8 C,A62
+AGUSTINUS HILARIO W. KARUBUN,L,8 C,A63
+ADITYA PRATAMA,L,8 G,A64
+SYAFIRA MARSYA PUTRI,P,8 G,A65
+NATHANIEL M. F. R. WALLY,L,8 I,A66
+NINDY PRADINDA ARUM WIDIASTUTI,P,8 I,A67
+ANGELIN MARTHA GLADYS PARANGAN,P,8 I,A68
+ALEXANDER CHRISTOPHER F. S. WALLY,L,8 G,A69
+LEONARDO P. T. T. LALENOH,L,8 H,A70
+MUHAMMAD FACHRI KURNIAWAN,L,8 H,A71
+SHEREN YUANITA R. P. D. A. LEUNUFNA,P,8 F,A72
+GLADYS ZAHIRA KHAIRUNISA,P,8 G,A73
+MUHAMMAD RIFALDI,L,8 G,A74
+MOH. ALFIAN ANUGRAH,L,8 H,A75
+MARCELINA LEGI,P,7 H,A76
+AYUNING TYAS KUSUMAWATI,P,7 H,A77
+VALERIE CHRISTY ARUAN,P,7 G,A78
+SHILVIA CLARENTY WAROI,P,7 I,A79
+MUHAMMAD RIFKY RIZKI,L,7 I,A80
+MUHAMMAD RASYAD RIDHO,L,7 C,A81
+RISKA PUTRI,P,7 C,A82
+ALYA RAHMA PUTRI,P,7 D,A83
+YUNITA KARUBABA,P,7 C,A84
+ALVARO AZKA ABYADH,L,7 D,A85
+PUTRI ARYANTI,P,7 E,A86
+MEIKE ELISABETH KARUBUN,P,7 E,A87
+GLEN PRATAMA,L,7 E,A88
+PUTRI ARTIKA BINTI SYARIFUDIN,P,7 F,A89
+KHAIRUNNISA,P,7 G,A90
+AGNES DEWI PRATIWI,P,7 G,A91
+SHINTA BELLA,P,7 G,A92
+PUTRI KESYA INDAH,P,7 H,A93
+NADIA RAHMA YANI,P,7 H,A94
+VALENTINA RUMASEB,P,7 F,A95
+DELANNY JELTY PARMA,P,7 F,A96
+RAIHANA MAULIDYA,P,7 F,A97
+DELIMA AGUSTINA RUMASEB,P,8 G,A98
+CHELSEA KOROPAT,P,8 G,A99
+IVELENSIA RUMASEB,P,8 I,A100
+ZEVANYA MEYLA RANDAN BASONGAN,P,7 B,A101
+AVIQA KHUMAIRA USMAN,P,7 D,A102
+KASIH NAOMI KARARBO,P,7 C,A103
+TITUS SEUM,L,7 A,A104
+ADRIANO ANDREAS MOZAD GINUNI,L,7 D,A105
+Alva Rsla Senewe,L,7 B,A106
+BRIAN TANDI ARRANG,L,7 B,A107
+Thomas Indow,L,7 D,A108
+MITHA,P,7 A,A109
+SULKIFLY,L,7 A,A110
+FATHAN AL MAIZAN KHAIRYANSYAH,L,7 A,A111
+JESSICA ALENSIA SAIBA,P,7 C,A112
+FITRAH RAMADHAN,L,7 G,A113
+MICHAEL KEVIN NAFALI,L,7 G,A114
+MUHAMAD ZALQI RENDANI YUSUF,L,8 I,A115
+ANUGRAH AFRIZAL M. NUR,L,8 G,A116
+PUTRI ANATASIA,P,8 I,A117</textarea>
+                    
+                    <button id="uploadDataButton" class="mt-2 w-full py-2 bg-yellow-500 text-white font-semibold rounded-lg shadow-md hover:bg-yellow-600 transition duration-300">
+                        Upload & Simpan Data Anggota
+                    </button>
+                    <div id="adminMessage" class="mt-2 text-sm text-red-600"></div>
+                    <button id="toggleAttendanceButton" class="mt-4 w-full text-center text-xs text-gray-500 hover:text-yellow-700 transition">
+                        Beralih ke Rekap Absensi
+                    </button>
+                </div>
+
+                <!-- Rekap Kehadiran -->
+                <div id="recapPanel">
+                    <h3 class="text-xl font-bold text-[#1d4ed8] mb-4">3. Rekap Data Kehadiran Ekstrakurikuler Badminton</h3>
+
+                    <!-- Filter dan Pencarian -->
+                    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                        <input type="text" id="searchName" placeholder="Cari Nama / ID Unik..." class="w-full sm:w-1/2 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition text-sm">
+                        <input type="date" id="filterDate" class="w-full sm:w-1/3 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition text-sm">
+                        <button id="printButton" class="w-full sm:w-1/6 py-2 bg-gray-700 text-white font-semibold rounded-lg shadow-md hover:bg-black transition duration-300 flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m0 0l-1 1m1-1v-2a2 2 0 012-2h4a2 2 0 012 2v2m0-10H5m14 0a2 2 0 00-2-2H5a2 2 0 00-2 2h14z"></path></svg>
+                            Print Rekap
+                        </button>
+                    </div>
+
+                    <!-- Tabel Rekap Kehadiran -->
+                    <div id="recapTableContainer" class="overflow-x-auto rounded-lg border border-gray-200 shadow-md">
+                        <div id="attendanceRecap" class="min-w-full bg-white">
+                            <div class="print-header hidden">Laporan Kehadiran Ekstrakurikuler Badminton - Tanggal Cetak: <span id="printDatePlaceholder"></span></div>
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-[#e0f2fe] text-[#1d4ed8]">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">No</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Nama</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Kelas</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">J. Kelamin</th> <!-- Kolom Baru -->
+                                        <th class="column-nis px-6 py-3 text-left text-xs font-medium uppercase tracking-wider hidden">ID Unik</th> <!-- Tetap disembunyikan -->
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Tanggal</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Jam</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendanceBody" class="bg-white divide-y divide-gray-100">
+                                    <tr><td colspan="7" class="text-center py-4 text-gray-500">Memuat data absensi...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <p id="noDataMessage" class="text-center text-gray-500 mt-4 hidden">Tidak ada data kehadiran yang ditemukan.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer / Kredit Pengembang -->
+    <footer class="mt-8 p-4 w-full max-w-5xl text-center text-gray-400 text-xs">
+        Aplikasi ini dikembangkan oleh Alfian – Guru Bimbingan Konseling – SMP Negeri 6 Manokwari.
+    </footer>
+</div>
+
+<!-- Import Firebase Library -->
+<script type="module">
+    // Menggunakan nilai default untuk simulasi, namun untuk lingkungan Canvas yang sebenarnya
+    // variabel global akan diisi secara otomatis.
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-smpn6-badminton-app';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{"apiKey":"YOUR_API_KEY_HERE","authDomain":"your-project-id.firebaseapp.com","projectId":"your-project-id","storageBucket":"your-project-id.appspot.com","messagingSenderId":"YOUR_MESSAGING_SENDER_ID","appId":"YOUR_APP_ID"}');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Library Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Atur level log Firebase ke Debug (opsional, untuk debugging)
+    setLogLevel('Debug');
+
+    // DOM Elements
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const mainApp = document.getElementById('mainApp');
+    const welcomeButton = document.getElementById('welcomeButton');
+    const messageBox = document.getElementById('messageBox');
+    const toggleAdminButton = document.getElementById('toggleAdminButton');
+    const toggleAttendanceButton = document.getElementById('toggleAttendanceButton');
+    const adminPanel = document.getElementById('adminPanel');
+    const recapPanel = document.getElementById('recapPanel');
+    const studentDataInput = document.getElementById('studentDataInput');
+    const uploadDataButton = document.getElementById('uploadDataButton');
+    const adminMessage = document.getElementById('adminMessage');
+    const attendanceBody = document.getElementById('attendanceBody');
+    const printButton = document.getElementById('printButton');
+    const searchName = document.getElementById('searchName');
+    const filterDate = document.getElementById('filterDate');
+    const noDataMessage = document.getElementById('noDataMessage');
+    
+    // SCANNER INPUT ELEMENT
+    const qrCodeInput = document.getElementById('qrCodeInput');
+
+    // Firebase Initialization
+    let app, db, auth, userId;
+    let studentsDataCache = []; // Cache untuk data siswa
+    let attendanceRecords = []; // Data mentah dari Firestore
+
+    // Fungsi utilitas untuk memformat waktu
+    const formatDateTime = (timestamp) => {
+        // Pastikan timestamp adalah objek Firestore Timestamp
+        if (!timestamp || typeof timestamp.toDate !== 'function') {
+            return { tanggal: 'N/A', jam: 'N/A', timestamp: 0, filterDate: 'N/A' };
+        }
+        
+        const date = timestamp.toDate();
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mi = String(date.getMinutes()).padStart(2, '0');
+        const se = String(date.getSeconds()).padStart(2, '0');
+        return {
+            tanggal: `${dd}-${mm}-${yyyy}`,
+            jam: `${hh}:${mi}:${se}`,
+            timestamp: date.getTime(),
+            filterDate: `${yyyy}-${mm}-${dd}`
+        };
+    };
+
+    // --- FIREBASE SETUP & AUTHENTIKASI ---
+    const setupFirebase = async () => {
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Autentikasi menggunakan token kustom atau anonim
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log('User authenticated. UID:', userId);
+                    // Setelah autentikasi, kita bisa mulai memuat data
+                    setupDataListeners();
+                } else {
+                    console.error("Autentikasi gagal atau user tidak ada. Mencoba sign in anonim...");
+                    // Fallback sign in anonim jika gagal/tidak ada token
+                    signInAnonymously(auth).then(res => {
+                        userId = res.user.uid;
+                        console.log('Signed in anonymously. UID:', userId);
+                        setupDataListeners();
+                    });
+                }
+            });
+
+        } catch (error) {
+            console.error("Kesalahan inisialisasi Firebase:", error);
+            showMessage("Kesalahan saat menghubungkan ke database.", 'error');
+            // Jika Firebase gagal total, nonaktifkan fungsi yang membutuhkan database
+            uploadDataButton.disabled = true;
+            uploadDataButton.textContent = 'Database Tidak Tersedia';
+        }
+    };
+
+    // Path Collections
+    const getStudentCollectionRef = (db, userId) => doc(db, `artifacts/${appId}/users/${userId}/admin_config/student_list`);
+    const getAttendanceCollectionRef = (db, userId) => collection(db, `artifacts/${appId}/users/${userId}/attendance_records`);
+
+    // --- DATA SISWA (ADMIN) ---
+
+    // Fungsi untuk memuat data siswa ke dalam cache
+    const loadStudentDataCache = async () => {
+        if (!userId || !db) return;
+
+        try {
+            const studentDocRef = getStudentCollectionRef(db, userId);
+            const studentDocSnapshot = await getDoc(studentDocRef);
+            
+            studentsDataCache = [];
+            if (studentDocSnapshot.exists()) {
+                const data = studentDocSnapshot.data();
+                try {
+                    // Data siswa disimpan sebagai string JSON, harus di-parse
+                    studentsDataCache = JSON.parse(data.students);
+                } catch (e) {
+                    console.error("Gagal parse data siswa dari Firestore:", e);
+                    studentsDataCache = [];
+                }
+            }
+            
+            console.log(`Data Siswa berhasil dimuat: ${studentsDataCache.length} siswa.`);
+            return studentsDataCache;
+
+        } catch (error) {
+            console.error("Gagal memuat data siswa:", error);
+            adminMessage.textContent = 'Gagal memuat data siswa.';
+        }
+    };
+
+    // Handle Upload Data Siswa
+    uploadDataButton.addEventListener('click', async () => {
+        if (!userId || !db) {
+            adminMessage.textContent = 'Aplikasi belum terhubung ke database. Coba muat ulang.';
+            return;
+        }
+
+        const dataText = studentDataInput.value.trim();
+        if (!dataText) {
+            adminMessage.textContent = 'Masukkan data anggota terlebih dahulu.';
+            return;
+        }
+
+        uploadDataButton.disabled = true;
+        uploadDataButton.textContent = 'Memproses...';
+
+        const lines = dataText.split('\n');
+        const newStudentData = [];
+        let errorCount = 0;
+
+        for (const line of lines) {
+            // Coba split dengan koma atau tab, lalu filter elemen kosong
+            const parts = line.split(/[,\t]/).map(p => p.trim()).filter(p => p);
+            
+            // Format wajib: Nama, JK, Kelas, Kode Unik
+            if (parts.length >= 4) {
+                const name = parts[0];
+                const gender = parts[1].toUpperCase();
+                const studentClass = parts[2];
+                const nis = parts[3].toUpperCase(); // KODE UNIK
+
+                if (name && (gender === 'L' || gender === 'P') && studentClass && nis) {
+                    newStudentData.push({
+                        name: name,
+                        nis: nis, // ID Unik untuk absensi
+                        gender: gender, // Jenis Kelamin
+                        class: studentClass
+                    });
+                } else {
+                    errorCount++;
+                }
+            } else {
+                if (line.trim() !== '') {
+                    errorCount++;
+                }
+            }
+        }
+
+        if (newStudentData.length === 0) {
+            adminMessage.textContent = 'Tidak ada data valid yang ditemukan. Pastikan format: Nama,JK (L/P),Kelas,Kode Unik';
+            uploadDataButton.disabled = false;
+            uploadDataButton.textContent = 'Upload & Simpan Data Anggota';
+            return;
+        }
+
+        try {
+            // Gunakan satu dokumen khusus untuk menyimpan array data siswa
+            const studentDocRef = getStudentCollectionRef(db, userId);
+
+            // Simpan data (menimpa data lama)
+            // Simpan array sebagai string JSON
+            await setDoc(studentDocRef, { 
+                students: JSON.stringify(newStudentData),
+                lastUpdated: serverTimestamp() 
+            });
+
+            adminMessage.className = 'mt-2 text-sm text-green-600';
+            adminMessage.textContent = `Berhasil mengupload ${newStudentData.length} data anggota. ${errorCount > 0 ? `(${errorCount} baris diabaikan karena format tidak lengkap)` : ''}`;
+            
+            // Muat ulang cache data siswa setelah upload
+            await loadStudentDataCache();
+        } catch (e) {
+            console.error("Error saving student data: ", e);
+            adminMessage.className = 'mt-2 text-sm text-red-600';
+            adminMessage.textContent = 'Gagal menyimpan data ke Firestore. Lihat konsol untuk detail.';
+        } finally {
+             uploadDataButton.disabled = false;
+             uploadDataButton.textContent = 'Upload & Simpan Data Anggota';
+        }
+    });
+
+    // --- ABSENSI (INPUT TEKS) ---
+
+    // Fungsi menampilkan pesan notifikasi
+    const showMessage = (text, type = 'info') => {
+        messageBox.textContent = text;
+        messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+        
+        let bgColor = 'bg-blue-100', textColor = 'text-blue-700';
+        if (type === 'error') {
+            bgColor = 'bg-red-100'; textColor = 'text-red-700';
+        } else if (type === 'success') {
+            bgColor = 'bg-green-100'; textColor = 'text-green-800'; // Menggunakan dark green untuk sukses
+        }
+        
+        messageBox.classList.add(bgColor, textColor);
+        messageBox.classList.remove('hidden');
+        
+        // Atur agar pesan hilang setelah 5 detik
+        setTimeout(() => {
+            messageBox.classList.add('hidden');
+        }, 5000);
+    };
+
+    // Fungsi Absen (dipanggil setelah input teks masuk)
+    const handleScanSuccess = async (nis) => {
+        
+        const cleanedNis = nis.trim().toUpperCase(); // Pastikan format konsisten
+
+        // 1. Validasi Awal
+        if (!userId || !db) {
+            showMessage("Aplikasi sedang memuat data. Mohon tunggu sebentar.", 'error');
+            return;
+        }
+        if (!cleanedNis) {
+            showMessage("Kode Unik tidak terbaca. Coba scan lagi.", 'error');
+            return;
+        }
+        if (studentsDataCache.length === 0) {
+             showMessage("Data anggota belum diupload di Panel Admin. Silakan upload terlebih dahulu.", 'error');
+             // Lakukan reset input agar siap scan berikutnya
+             resetInputAndFocus();
+             return; 
+        }
+
+        // Cari siswa berdasarkan NIS (ID Unik)
+        const student = studentsDataCache.find(s => s.nis === cleanedNis);
+
+        if (!student) {
+            showMessage(`ID Unik "${cleanedNis}" tidak ditemukan dalam daftar anggota.`, 'error');
+            // Lakukan reset input agar siap scan berikutnya
+            resetInputAndFocus();
+            return; 
+        }
+        
+        // Cek apakah siswa sudah absen hari ini (Cek data di cache records)
+        const today = new Date().toISOString().split('T')[0];
+        let alreadyAbsent = false;
+
+        for (const record of attendanceRecords) {
+            if (record.timestamp) {
+                const recordDate = formatDateTime(record.timestamp).filterDate;
+                if (record.nis === cleanedNis && recordDate === today) {
+                    alreadyAbsent = true;
+                    break;
+                }
+            }
+        }
+            
+        if (alreadyAbsent) {
+            showMessage(`Anggota ${student.name} sudah absen hari ini.`, 'info');
+            // Lakukan reset input agar siap scan berikutnya
+            resetInputAndFocus();
+            return;
+        }
+
+
+        // 2. Simpan Data Absensi
+        try {
+            qrCodeInput.disabled = true; // Nonaktifkan input sementara
+            showMessage("Kode terdeteksi, merekam absensi...", 'info');
+
+            const attendanceCol = getAttendanceCollectionRef(db, userId);
+
+            await addDoc(attendanceCol, {
+                name: student.name,
+                nis: student.nis, // Tetap simpan NIS/ID Unik di database
+                class: student.class,
+                gender: student.gender, // Tambahkan Jenis Kelamin
+                timestamp: serverTimestamp(), // MEREKAM WAKTU SERVER OTOMATIS
+                status: 'Hadir'
+            });
+
+            showMessage(`Absen Berhasil! Selamat datang, ${student.name} (${student.class}).`, 'success');
+
+        } catch (e) {
+            console.error("Error saving attendance: ", e);
+            showMessage("Gagal menyimpan data absensi.", 'error');
+        } finally {
+            // 3. Reset Input setelah selesai (Siap untuk scan berikutnya)
+            qrCodeInput.disabled = false;
+            resetInputAndFocus();
+        }
+    };
+    
+    // Fungsi untuk mereset nilai input dan memberikan fokus
+    const resetInputAndFocus = () => {
+        // Gunakan timeout singkat untuk memastikan input sudah kosong saat scanner berikutnya masuk
+        setTimeout(() => {
+            qrCodeInput.value = '';
+            qrCodeInput.focus();
+        }, 100); 
+    };
+
+    // --- EVENT LISTENER UNTUK ALAT SCAN (ENTER KEY) ---
+    qrCodeInput.addEventListener('keypress', (event) => {
+        // Alat scanner USB biasanya mengirimkan string diikuti oleh tombol 'Enter' (keyCode 13)
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Mencegah form submit default atau perilaku browser lain
+            const scannedCode = qrCodeInput.value;
+            if (scannedCode) {
+                handleScanSuccess(scannedCode);
+            }
+        }
+    });
+
+    // --- REKAP KEHADIRAN (onSnapshot) ---
+
+    const setupDataListeners = async () => {
+        if (!userId || !db) return;
+
+        // 1. Load Student Cache 
+        await loadStudentDataCache();
+        
+        // 2. Set up real-time listener for Attendance Records
+        const attendanceCol = getAttendanceCollectionRef(db, userId);
+        const q = query(attendanceCol); // Query dasar tanpa filter
+        
+        onSnapshot(q, (snapshot) => {
+            attendanceRecords = [];
+            snapshot.forEach(doc => {
+                // Tambahkan ID dokumen untuk potensi penghapusan
+                attendanceRecords.push({ id: doc.id, ...doc.data() });
+            });
+            // Urutkan berdasarkan timestamp terbaru
+            attendanceRecords.sort((a, b) => (b.timestamp?.toDate().getTime() || 0) - (a.timestamp?.toDate().getTime() || 0));
+            
+            console.log('Data absensi diperbarui:', attendanceRecords.length);
+            renderAttendanceTable(); // Panggil render setiap kali data berubah
+        }, (error) => {
+            console.error("Error listening to attendance data:", error);
+            // Jumlah kolom sekarang 7 (No, Nama, Kelas, JK, ID Unik (hidden), Tanggal, Jam, Status)
+            attendanceBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-red-500">Gagal memuat data real-time.</td></tr>`;
+        });
+    };
+
+    // Fungsi Render Tabel Kehadiran
+    const renderAttendanceTable = () => {
+        // Terapkan filter dan pencarian
+        const query = searchName.value.toLowerCase();
+        const dateQuery = filterDate.value; // Format: YYYY-MM-DD
+
+        const filteredRecords = attendanceRecords.filter(record => {
+            if (!record.timestamp) return false; // Abaikan data tanpa timestamp
+
+            const formattedTime = formatDateTime(record.timestamp);
+            // Cari berdasarkan Nama ATAU NIS (ID Unik)
+            const matchesQuery = record.name.toLowerCase().includes(query) || record.nis.toLowerCase().includes(query);
+            
+            // Jika ada filter tanggal, cek kecocokan
+            const matchesDate = !dateQuery || formattedTime.filterDate === dateQuery;
+
+            return matchesQuery && matchesDate;
+        });
+
+        attendanceBody.innerHTML = '';
+        // Jumlah kolom total di tabel adalah 8, 1 di antaranya hidden (ID Unik), jadi colspan = 7
+        const colSpan = 7; 
+
+
+        if (filteredRecords.length === 0) {
+            noDataMessage.classList.remove('hidden');
+            attendanceBody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-4 text-gray-500">Tidak ada data kehadiran yang cocok dengan filter.</td></tr>`;
+            return;
+        }
+
+        noDataMessage.classList.add('hidden');
+        filteredRecords.forEach((record, index) => {
+            // Pastikan timestamp ada sebelum memformat
+            if (!record.timestamp) return;
+
+            const formatted = formatDateTime(record.timestamp);
+            
+            const row = `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                    <td class="px-6 py-2 whitespace-nowrap font-medium text-gray-900">${record.name}</td>
+                    <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">${record.class}</td>
+                    <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">${record.gender || '-'}</td> <!-- Tampilkan Gender -->
+                    <!-- Kolom ID Unik (NIS) disembunyikan -->
+                    <td class="column-nis px-6 py-2 whitespace-nowrap text-sm text-gray-500 hidden">${record.nis}</td> 
+                    <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">${formatted.tanggal}</td>
+                    <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">${formatted.jam}</td>
+                    <td class="px-6 py-2 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${record.status === 'Hadir' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${record.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+            attendanceBody.innerHTML += row;
+        });
+    };
+
+    // Event Listeners untuk Filter dan Pencarian
+    searchName.addEventListener('input', renderAttendanceTable);
+    filterDate.addEventListener('change', renderAttendanceTable);
+
+    // --- FITUR PRINT ---
+    printButton.addEventListener('click', () => {
+        // Set tanggal laporan di header print
+        const today = new Date();
+        const dateString = today.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        document.getElementById('printDatePlaceholder').textContent = dateString;
+        
+        // Sembunyikan kolom NIS di tabel sebelum print (jika belum disembunyikan via CSS)
+        document.querySelectorAll('.column-nis').forEach(el => {
+            el.style.display = 'none';
+        });
+
+        // Tampilkan header print
+        document.querySelector('.print-header').classList.remove('hidden');
+
+        window.print();
+
+        // Tampilkan kembali kolom NIS dan sembunyikan header print setelah mencetak
+        setTimeout(() => {
+             document.querySelectorAll('.column-nis').forEach(el => {
+                el.style.display = 'none';
+            });
+            document.querySelector('.print-header').classList.add('hidden');
+        }, 500);
+    });
+
+    // --- NAVIGASI UI ---
+    
+    // Tombol Selamat Datang
+    welcomeButton.addEventListener('click', () => {
+        welcomeScreen.classList.add('opacity-0', 'scale-90');
+        setTimeout(() => {
+            welcomeScreen.classList.add('hidden');
+            mainApp.classList.remove('hidden', 'opacity-0', 'scale-90');
+            mainApp.classList.add('opacity-100', 'scale-100');
+            
+            // Fokuskan pada input setelah masuk
+            qrCodeInput.focus();
+            
+        }, 300);
+    });
+
+    // Toggle Admin/Absensi
+    toggleAdminButton.addEventListener('click', () => {
+        // Pastikan input di-blur saat di mode admin
+        qrCodeInput.blur(); 
+        adminPanel.classList.remove('hidden');
+        recapPanel.classList.add('hidden');
+        toggleAdminButton.classList.add('hidden');
+        toggleAttendanceButton.classList.remove('hidden');
+    });
+
+    toggleAttendanceButton.addEventListener('click', () => {
+        adminPanel.classList.add('hidden');
+        recapPanel.classList.remove('hidden');
+        toggleAdminButton.classList.remove('hidden');
+        toggleAttendanceButton.classList.add('hidden');
+        
+        // Fokuskan pada input saat kembali ke mode absensi
+        qrCodeInput.focus();
+    });
+    
+    // Start the application
+    setupFirebase();
+
+</script>
+</body>
+</html>
